@@ -43,6 +43,16 @@ tmux kill-session -t tsg
 
 What Claude actually did (prompts, tool calls, results) is in the SDK's session log: `~/.claude/projects/<working directory with / replaced by ->/*.jsonl`. Stderr of the sidecar goes to `~/.local/state/nvim/tsugai.log`.
 
+## README GIFs
+
+`demo/` holds a minimal Neovim config, a small Ruby project and one [vhs](https://github.com/charmbracelet/vhs) tape per GIF. vhs needs `ttyd` and `ffmpeg`. Record from the repository root; each run calls Claude for real, so the result differs a little every time:
+
+```sh
+vhs demo/edit.tape
+```
+
+The tapes wait for text on the screen (`Wait+Screen`) rather than a fixed time. `demo/init.lua` pins the answers to English so the README reads consistently.
+
 ## Pitfalls
 
 - Never write to stdout in the sidecar: it is the RPC channel. `console.log` is redirected to stderr for that reason.
