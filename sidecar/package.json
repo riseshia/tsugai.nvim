@@ -1,0 +1,19 @@
+{
+  "name": "tsugai-sidecar",
+  "scripts": {
+    "start": "node src/main.ts",
+    "typecheck": "tsc"
+  },
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.281",
+    "neovim": "^5.5.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "typescript": "^7.0.2"
+  },
+  "private": true
+}

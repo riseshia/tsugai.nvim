@@ -1,0 +1,5 @@
+#!/bin/sh
+# Starts nvim with this checkout on the runtimepath, on top of your usual config.
+# --cmd runs before init, so plugin/tsugai.lua is picked up like an installed plugin.
+root=$(cd "$(dirname "$0")/.." && pwd)
+exec nvim --cmd "set rtp^=$root" "$@"
