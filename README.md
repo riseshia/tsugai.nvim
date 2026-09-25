@@ -87,7 +87,7 @@ Consecutive `@@ai` lines form one template. To process only some templates, sele
 
 ![Asking in the chat, then running a proposed rename](demo/chat.gif)
 
-Ask in the chat for a rule-based change, e.g. `rename fetch_user to load_user everywhere`. Claude can answer with a command instead of edits: it fills the quickfix list with the targets and shows a card with the command and what each piece means. `<CR>` runs it, `e` puts it in the command line to tweak, `q` cancels. Commands never save files; check the result and `:wa`. Commands that could reach the shell or evaluate code are refused.
+Ask in the chat for a rule-based change, e.g. `rename fetch_user to load_user everywhere`. Claude can answer with a command instead of edits: it fills the quickfix list with the targets and shows a card with the command and what each piece means. `<CR>` runs it, `e` puts it in the command line to tweak, `q` cancels. Commands save the files they change (`| update`), so review the result with `git diff`; `<Space>fu` undoes the whole run. Commands that could reach the shell or evaluate code are refused.
 
 ## Development
 

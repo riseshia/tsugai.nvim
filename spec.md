@@ -80,7 +80,7 @@ Flow:
 - Card contents: intent and scope (title), the command, a per-token explanation, key hints. The quickfix window opens alongside.
 - `p` preview: Lua computes the substitution without applying it and shows per-match before/after in a scratch buffer.
 - `e`: put the command in the cmdline (an escape hatch to tweak before running).
-- Saving is not part of the command (no `| update`). Save with `:wa` after checking.
+- Commands end in `| update`, so changed files are saved and the result is reviewed with `git diff` (and dropped with `git checkout`/`<Space>fu` if it is wrong). `:w` stays disallowed since it can write to any file name.
 - Remember the target buffers before running; `<Space>fu` undoes the whole run.
 - No `c` flag by default (the card already confirmed it). Claude adds it only when targets are ambiguous.
 - Renames also use a `cfdo` command proposal instead of LSP rename, which is why showing targets in quickfix first matters.

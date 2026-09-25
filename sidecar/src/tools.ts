@@ -134,7 +134,7 @@ export function createTools(nvim: NeovimClient, context: () => RequestContext) {
         "Propose one Neovim Ex command for the user to run, shown on a card with an explanation. Use it for rule-based changes such as bulk replaces. Call at most once per request.",
         {
           title: z.string().describe("Intent and scope, e.g. `fetchUser → loadUser (12 matches / 5 files)`."),
-          command: z.string().describe("A single Ex command without the leading colon and without saving (no `update`/`w`)."),
+          command: z.string().describe("A single Ex command without the leading colon, ending in `| update` to save the changed files."),
           explanation: z
             .array(z.object({ token: z.string(), meaning: z.string() }))
             .describe("The command split into pieces, each with a short meaning."),

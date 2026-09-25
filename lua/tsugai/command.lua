@@ -11,6 +11,9 @@ local ALLOWED = {
   j = true, join = true, [">"] = true, ["<"] = true, sort = true, retab = true,
   le = true, left = true, ri = true, right = true, ce = true, center = true,
   norm = true, normal = true, noh = true, nohlsearch = true,
+  -- Saving is allowed so the result can be reviewed with git diff; `w` is not, since it
+  -- can write to any file name.
+  up = true, update = true,
 }
 local GLOBALS = { g = true, global = true, v = true, vglobal = true }
 
@@ -98,7 +101,7 @@ local function execute(proposal)
     return vim.notify("tsugai: " .. tostring(err), vim.log.levels.ERROR)
   end
   local count = vim.tbl_count(changed)
-  vim.notify(("tsugai: changed %d buffer(s). :wa to save, %s to undo"):format(count, require("tsugai").key("u")))
+  vim.notify(("tsugai: changed %d buffer(s). %s to undo"):format(count, require("tsugai").key("u")))
 end
 
 function M.undo()
@@ -112,7 +115,7 @@ function M.undo()
       end)
     end
   end
-  vim.notify(("tsugai: undid the command in %d buffer(s)"):format(vim.tbl_count(last_run)))
+  vim.notify(("tsugai: undid the command in %d buffer(s). :wa to write the undo if it had saved"):format(vim.tbl_count(last_run)))
   last_run = nil
 end
 
