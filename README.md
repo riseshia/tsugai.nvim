@@ -85,10 +85,4 @@ Ask in the chat for a rule-based change, e.g. `rename fetch_user to load_user ev
 
 ## Development
 
-`bin/dev-nvim` starts Neovim with your usual config plus this checkout on the runtimepath:
-
-```sh
-bin/dev-nvim path/to/file.rb
-```
-
-Sidecar logs go to `~/.local/state/nvim/tsugai.log`. To type-check the sidecar, run `npm install` in `sidecar/` (the build step skips dev dependencies) and then `npm run typecheck`.
+See [DEVELOPMENT.md](DEVELOPMENT.md).
