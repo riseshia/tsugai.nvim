@@ -7,7 +7,11 @@ vim.api.nvim_set_hl(0, "TsugaiGhost", { default = true, fg = "#808080", ctermfg 
 vim.api.nvim_set_hl(0, "TsugaiRemoved", { default = true, strikethrough = true, fg = "#e06c75", ctermfg = 167 })
 vim.api.nvim_set_hl(0, "TsugaiHint", { default = true, link = "Comment" })
 
-local HINT = "<Space>fy accept · <Space>fn reject · <Space>fr refine"
+local key = require("tsugai").key
+
+local function hint()
+  return ("%s accept · %s reject · %s refine"):format(key("y"), key("n"), key("r"))
+end
 
 -- bufnr -> list of { anchor, marks, old_text, new_lines, reason }
 local reviews = {}
@@ -157,25 +161,28 @@ local function echo_hint(bufnr)
     return vim.api.nvim_echo({ { "" } }, false, {})
   end
   -- Keys first: without them there is no way to tell how to accept, while the reason can be cut.
-  local line = HINT .. "  " .. hunk.reason
+  local keys = hint()
+  local line = keys .. "  " .. hunk.reason
   while vim.fn.strdisplaywidth(line) > vim.v.echospace do
     line = vim.fn.strcharpart(line, 0, vim.fn.strchars(line) - 1)
   end
-  vim.api.nvim_echo({ { line:sub(1, #HINT), "TsugaiHint" }, { line:sub(#HINT + 1) } }, false, {})
+  vim.api.nvim_echo({ { line:sub(1, #keys), "TsugaiHint" }, { line:sub(#keys + 1) } }, false, {})
 end
 
 local augroup = vim.api.nvim_create_augroup("tsugai_diff", { clear = true })
 
-local KEYS = { "]g", "[g", "<Space>fy", "<Space>fn", "<Space>fr", "<Space>fY", "<Space>fq" }
+-- bufnr -> buffer-local keys mapped while its proposals are shown.
+local buffer_keys = {}
 
 local function finish_if_empty(bufnr)
   if #(reviews[bufnr] or {}) > 0 then
     return echo_hint(bufnr)
   end
   reviews[bufnr] = nil
-  for _, lhs in ipairs(KEYS) do
+  for _, lhs in ipairs(buffer_keys[bufnr] or {}) do
     pcall(vim.keymap.del, "n", lhs, { buffer = bufnr })
   end
+  buffer_keys[bufnr] = nil
   vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
   vim.api.nvim_echo({ { "" } }, false, {})
 end
@@ -222,7 +229,6 @@ local function is_stale(bufnr, hunk)
   return false
 end
 
-local STALE = "tsugai: the code changed since this proposal. <Space>fr to redo it, <Space>fn to drop it"
 
 function M.accept()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -231,7 +237,8 @@ function M.accept()
     return vim.notify("tsugai: no hunk under cursor", vim.log.levels.WARN)
   end
   if is_stale(bufnr, hunk) then
-    return vim.notify(STALE, vim.log.levels.WARN)
+    local message = "tsugai: the code changed since this proposal. %s to redo it, %s to drop it"
+    return vim.notify(message:format(key("r"), key("n")), vim.log.levels.WARN)
   end
   local first, last = range(bufnr, hunk)
   discard(bufnr, index)
@@ -310,13 +317,19 @@ end
 
 local function map_keys(bufnr)
   local opts = { buffer = bufnr, nowait = true }
-  vim.keymap.set("n", "]g", function() M.jump(1) end, opts)
-  vim.keymap.set("n", "[g", function() M.jump(-1) end, opts)
-  vim.keymap.set("n", "<Space>fy", M.accept, opts)
-  vim.keymap.set("n", "<Space>fn", M.reject, opts)
-  vim.keymap.set("n", "<Space>fr", function() require("tsugai.edit").refine() end, opts)
-  vim.keymap.set("n", "<Space>fY", M.accept_all, opts)
-  vim.keymap.set("n", "<Space>fq", M.reject_all, opts)
+  local keys = {
+    ["]g"] = function() M.jump(1) end,
+    ["[g"] = function() M.jump(-1) end,
+    [key("y")] = M.accept,
+    [key("n")] = M.reject,
+    [key("r")] = function() require("tsugai.edit").refine() end,
+    [key("Y")] = M.accept_all,
+    [key("q")] = M.reject_all,
+  }
+  buffer_keys[bufnr] = vim.tbl_keys(keys)
+  for lhs, rhs in pairs(keys) do
+    vim.keymap.set("n", lhs, rhs, opts)
+  end
   vim.api.nvim_create_autocmd("CursorMoved", {
     group = augroup,
     buffer = bufnr,

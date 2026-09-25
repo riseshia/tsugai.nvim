@@ -98,7 +98,7 @@ local function execute(proposal)
     return vim.notify("tsugai: " .. tostring(err), vim.log.levels.ERROR)
   end
   local count = vim.tbl_count(changed)
-  vim.notify(("tsugai: changed %d buffer(s). :wa to save, <Space>fu to undo"):format(count))
+  vim.notify(("tsugai: changed %d buffer(s). :wa to save, %s to undo"):format(count, require("tsugai").key("u")))
 end
 
 function M.undo()

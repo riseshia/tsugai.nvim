@@ -27,10 +27,14 @@ With lazy.nvim:
 
 The build step installs the sidecar's dependencies, including the Agent SDK, which bundles a platform-specific Claude Code binary, so it has to run on each machine.
 
-Optionally pass preferences for Claude. They are appended to its system prompt and take precedence over the defaults, which answer in the language of each request:
+Optionally call `setup()`:
 
 ```lua
 require("tsugai").setup({
+  -- Prefix of every tsugai key (default "<Space>f"). The keys below assume the default.
+  prefix = "<Space>f",
+  -- Preferences appended to Claude's system prompt. They take precedence over the
+  -- defaults, which answer in the language of each request.
   instructions = "Always answer in Korean.",
 })
 ```
