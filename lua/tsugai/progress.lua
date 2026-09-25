@@ -49,7 +49,7 @@ function M.append(event)
   if event.tool then
     append_line("▸ " .. event.tool)
   elseif event.input then
-    append_line("  " .. event.input:sub(1, 120))
+    append_line("  " .. event.input)
   else
     append_text(event.text)
   end

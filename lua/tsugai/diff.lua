@@ -7,7 +7,7 @@ vim.api.nvim_set_hl(0, "TsugaiGhost", { default = true, fg = "#808080", ctermfg 
 vim.api.nvim_set_hl(0, "TsugaiRemoved", { default = true, strikethrough = true, fg = "#e06c75", ctermfg = 167 })
 vim.api.nvim_set_hl(0, "TsugaiHint", { default = true, link = "Comment" })
 
-local HINT = "<Space>ay accept · <Space>an reject · <Space>ar refine"
+local HINT = "<Space>fy accept · <Space>fn reject · <Space>fr refine"
 
 -- bufnr -> list of { anchor, marks, old_text, new_lines, reason }
 local reviews = {}
@@ -166,7 +166,7 @@ end
 
 local augroup = vim.api.nvim_create_augroup("tsugai_diff", { clear = true })
 
-local KEYS = { "]g", "[g", "<Space>ay", "<Space>an", "<Space>ar", "<Space>aY", "<Space>aq" }
+local KEYS = { "]g", "[g", "<Space>fy", "<Space>fn", "<Space>fr", "<Space>fY", "<Space>fq" }
 
 local function finish_if_empty(bufnr)
   if #(reviews[bufnr] or {}) > 0 then
@@ -205,11 +205,33 @@ local function advance(bufnr, row)
   end
 end
 
+-- True when the lines under the hunk were edited after it was proposed; accepting would
+-- silently throw those edits away.
+local function is_stale(bufnr, hunk)
+  local first, last = range(bufnr, hunk)
+  local current = vim.api.nvim_buf_get_lines(bufnr, first, last + 1, false)
+  local original = split(hunk.old_text)
+  if #current ~= #original then
+    return true
+  end
+  for i, line in ipairs(current) do
+    if rtrim(line) ~= rtrim(original[i]) then
+      return true
+    end
+  end
+  return false
+end
+
+local STALE = "tsugai: the code changed since this proposal. <Space>fr to redo it, <Space>fn to drop it"
+
 function M.accept()
   local bufnr = vim.api.nvim_get_current_buf()
   local hunk, index = M.hunk_at_cursor(bufnr)
   if not hunk then
     return vim.notify("tsugai: no hunk under cursor", vim.log.levels.WARN)
+  end
+  if is_stale(bufnr, hunk) then
+    return vim.notify(STALE, vim.log.levels.WARN)
   end
   local first, last = range(bufnr, hunk)
   discard(bufnr, index)
@@ -232,11 +254,21 @@ end
 
 function M.accept_all()
   local bufnr = vim.api.nvim_get_current_buf()
-  while #(reviews[bufnr] or {}) > 0 do
-    local hunk = reviews[bufnr][1]
-    local first, last = range(bufnr, hunk)
-    discard(bufnr, 1)
-    vim.api.nvim_buf_set_lines(bufnr, first, last + 1, false, hunk.new_lines)
+  local index = 1
+  while index <= #(reviews[bufnr] or {}) do
+    local hunk = reviews[bufnr][index]
+    if is_stale(bufnr, hunk) then
+      index = index + 1
+    else
+      local first, last = range(bufnr, hunk)
+      discard(bufnr, index)
+      vim.api.nvim_buf_set_lines(bufnr, first, last + 1, false, hunk.new_lines)
+    end
+  end
+  local skipped = #(reviews[bufnr] or {})
+  if skipped > 0 then
+    advance(bufnr, 0)
+    vim.notify(("tsugai: kept %d hunk(s) whose code changed since the proposal"):format(skipped), vim.log.levels.WARN)
   end
   finish_if_empty(bufnr)
 end
@@ -280,11 +312,11 @@ local function map_keys(bufnr)
   local opts = { buffer = bufnr, nowait = true }
   vim.keymap.set("n", "]g", function() M.jump(1) end, opts)
   vim.keymap.set("n", "[g", function() M.jump(-1) end, opts)
-  vim.keymap.set("n", "<Space>ay", M.accept, opts)
-  vim.keymap.set("n", "<Space>an", M.reject, opts)
-  vim.keymap.set("n", "<Space>ar", function() require("tsugai.edit").refine() end, opts)
-  vim.keymap.set("n", "<Space>aY", M.accept_all, opts)
-  vim.keymap.set("n", "<Space>aq", M.reject_all, opts)
+  vim.keymap.set("n", "<Space>fy", M.accept, opts)
+  vim.keymap.set("n", "<Space>fn", M.reject, opts)
+  vim.keymap.set("n", "<Space>fr", function() require("tsugai.edit").refine() end, opts)
+  vim.keymap.set("n", "<Space>fY", M.accept_all, opts)
+  vim.keymap.set("n", "<Space>fq", M.reject_all, opts)
   vim.api.nvim_create_autocmd("CursorMoved", {
     group = augroup,
     buffer = bufnr,

@@ -15,7 +15,7 @@ export type Session = {
 const MODEL = "sonnet";
 const BUILTIN_TOOLS = ["Read", "Grep", "Glob"];
 
-export function startSession(cwd: string, server: McpSdkServerConfigWithInstance, instructions: string): Session {
+export function startSession(cwd: string, server: McpSdkServerConfigWithInstance, systemPrompt: string): Session {
   const queued: SDKUserMessage[] = [];
   let wake: (() => void) | undefined;
 
@@ -42,7 +42,7 @@ export function startSession(cwd: string, server: McpSdkServerConfigWithInstance
       permissionMode: "dontAsk",
       includePartialMessages: true,
       settingSources: ["project"],
-      systemPrompt: { type: "preset", preset: "claude_code", append: instructions },
+      systemPrompt,
     },
   });
 

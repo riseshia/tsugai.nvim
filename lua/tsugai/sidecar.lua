@@ -23,6 +23,7 @@ local function ensure_started()
   state.chan = vim.fn.jobstart({ "node", ROOT .. "/sidecar/src/main.ts" }, {
     rpc = true,
     cwd = vim.fn.getcwd(),
+    env = { TSUGAI_INSTRUCTIONS = require("tsugai").config.instructions },
     on_stderr = function(_, data)
       log(data)
     end,
@@ -49,7 +50,7 @@ function M.on_event(event)
   end
 
   if event.kind == "progress" then
-    progress.append(event)
+    pending.on_progress(event)
   elseif event.kind == "done" then
     pending.result = event.result
     pending.done = true
@@ -59,12 +60,15 @@ function M.on_event(event)
   end
 end
 
--- Blocks the editor until the sidecar answers, keeping the progress float live.
-function M.request(method, params)
+-- Blocks the editor until the sidecar answers. Progress goes to `on_progress` when given,
+-- otherwise to the progress float.
+function M.request(method, params, on_progress)
   local chan = ensure_started()
-  local pending = { done = false }
+  local pending = { done = false, on_progress = on_progress or progress.append }
   state.pending = pending
-  progress.open(method)
+  if not on_progress then
+    progress.open(method)
+  end
 
   vim.rpcnotify(chan, method, params)
   local finished = function()

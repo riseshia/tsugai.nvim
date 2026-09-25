@@ -16,16 +16,28 @@ export type Hunk = {
   reason: string;
 };
 
+export type Command = {
+  title: string;
+  command: string;
+  explanation: { token: string; meaning: string }[];
+  locations: { path: string; line: number; text: string }[];
+};
+
 // State of the request in flight. Requests are single-threaded, so one slot is enough.
 export type RequestContext = {
   selection?: Selection;
   hunks?: Hunk[];
+  command?: Command;
 };
 
 export const SERVER_NAME = "tsugai";
 
 function text(value: string) {
   return { content: [{ type: "text" as const, text: value }] };
+}
+
+function failure(value: string) {
+  return { ...text(value), isError: true };
 }
 
 function numbered(lines: string[], firstLine: number): string {
@@ -103,6 +115,38 @@ export function createTools(nvim: NeovimClient, context: () => RequestContext) {
         async ({ hunks }) => {
           context().hunks = hunks;
           return text(`Recorded ${hunks.length} hunk(s) for review.`);
+        },
+      ),
+      tool(
+        "open_file",
+        "Open a file in the user's editor window and put the cursor on a line, e.g. to show the code you are explaining.",
+        {
+          path: z.string(),
+          line: z.number().int().min(1),
+        },
+        async ({ path, line }) => {
+          const opened = await nvim.lua("return require('tsugai.nav').open(...)", [path, line]);
+          return opened === true ? text(`Opened ${path}:${line}.`) : failure(String(opened));
+        },
+      ),
+      tool(
+        "propose_command",
+        "Propose one Neovim Ex command for the user to run, shown on a card with an explanation. Use it for rule-based changes such as bulk replaces. Call at most once per request.",
+        {
+          title: z.string().describe("Intent and scope, e.g. `fetchUser → loadUser (12 matches / 5 files)`."),
+          command: z.string().describe("A single Ex command without the leading colon and without saving (no `update`/`w`)."),
+          explanation: z
+            .array(z.object({ token: z.string(), meaning: z.string() }))
+            .describe("The command split into pieces, each with a short meaning."),
+          locations: z
+            .array(z.object({ path: z.string(), line: z.number().int().min(1), text: z.string() }))
+            .describe("Every place the command will change. Filled into the quickfix list, which `cfdo`/`cdo` iterate over."),
+        },
+        async (command) => {
+          const problem = await nvim.lua("return require('tsugai.command').check(...)", [command.command]);
+          if (problem) return failure(`Rejected: ${problem}. Propose a different command.`);
+          context().command = command;
+          return text("Recorded the command for the user to review.");
         },
       ),
     ],
