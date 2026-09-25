@@ -86,7 +86,7 @@ function toolName(name: string) {
 function describeInput(input: unknown) {
   if (typeof input !== "object" || input === null) return "";
   const fields = input as Record<string, unknown>;
-  const key = ["pattern", "file_path", "path", "command", "bufnr"].find((k) => fields[k] !== undefined);
+  const key = ["pattern", "file_path", "path", "command"].find((k) => fields[k] !== undefined);
   if (!key) return "";
   const value = String(fields[key]);
   const shown = value === process.cwd() || value.startsWith(process.cwd() + "/") ? relative(process.cwd(), value) || "." : value;

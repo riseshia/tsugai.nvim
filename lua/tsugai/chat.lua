@@ -20,6 +20,10 @@ local function buffer()
   vim.api.nvim_buf_set_name(state.buf, "tsugai://chat")
   vim.bo[state.buf].bufhidden = "hide"
   vim.bo[state.buf].filetype = "markdown"
+  -- Vim's markdown syntax marks `_` inside a word as an error, which paints every snake_case name.
+  vim.api.nvim_buf_call(state.buf, function()
+    vim.cmd("silent! syntax clear markdownError")
+  end)
   vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, { "# tsugai chat", "" })
   return state.buf
 end
