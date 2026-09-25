@@ -13,15 +13,19 @@ The design lives in [spec.md](spec.md). This is an early proof of concept: in-fi
 
 ## Setup
 
-```sh
-cd sidecar && npm install
-```
-
-Then add the repository to your plugin manager, e.g. with packer:
+Install it with your plugin manager, with `./build.sh` as the build step. With packer:
 
 ```lua
-use "~/repos/riseshia/tsugai.nvim"
+use { "riseshia/tsugai.nvim", run = "./build.sh" }
 ```
+
+With lazy.nvim:
+
+```lua
+{ "riseshia/tsugai.nvim", build = "./build.sh" }
+```
+
+The build step installs the sidecar's dependencies, including the Agent SDK, which bundles a platform-specific Claude Code binary, so it has to run on each machine.
 
 Optionally pass preferences for Claude. They are appended to its system prompt and take precedence over the defaults, which answer in the language of each request:
 
@@ -83,4 +87,4 @@ Ask in the chat for a rule-based change, e.g. `rename fetch_user to load_user ev
 bin/dev-nvim path/to/file.rb
 ```
 
-Sidecar logs go to `~/.local/state/nvim/tsugai.log`. Type-check the sidecar with `npm run typecheck` in `sidecar/`.
+Sidecar logs go to `~/.local/state/nvim/tsugai.log`. To type-check the sidecar, run `npm install` in `sidecar/` (the build step skips dev dependencies) and then `npm run typecheck`.
