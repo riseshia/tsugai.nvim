@@ -63,3 +63,5 @@ The tapes wait for text on the screen (`Wait+Screen`) rather than a fixed time. 
 - In tmux tests, sending `Escape` immediately followed by another key arrives as an Alt chord. Pause between them.
 - Killed test instances leave swap files that make the next run stop at a prompt. Start test instances with `nvim -n`.
 - Claude's Grep uses ripgrep, which skips gitignored directories when searching from above them. The system prompt tells Claude to search inside the working directory for this reason.
+- When tsugai is also installed through a plugin manager, `bin/dev-nvim` loads this checkout first and the installed copy's `plugin/tsugai.lua` is skipped by the `loaded_tsugai` guard. A Lua module deleted here, though, still loads from the installed copy.
+- Claude Code merges streamed replies that share a message id, and puts system-role reminders after the user's turn. A mock API has to give each reply its own id and look for the last user message, not the last message.
