@@ -220,6 +220,18 @@ local function advance(bufnr, row)
   end
 end
 
+-- Replaces rows first..last with `lines`. Replacing whole lines would delete up to the start
+-- of the next line and drag the next hunk's marks (which stick to the start of their line)
+-- into this change, so only the text inside the rows is replaced. Removing the rows
+-- entirely has to take the line breaks, and then the next hunk rightly moves up to `first`.
+local function apply(bufnr, first, last, lines)
+  if #lines == 0 then
+    return vim.api.nvim_buf_set_lines(bufnr, first, last + 1, false, {})
+  end
+  local last_line = vim.api.nvim_buf_get_lines(bufnr, last, last + 1, false)[1]
+  vim.api.nvim_buf_set_text(bufnr, first, 0, last, #last_line, lines)
+end
+
 -- True when the lines under the hunk were edited after it was proposed; accepting would
 -- silently throw those edits away.
 local function is_stale(bufnr, hunk)
@@ -250,7 +262,7 @@ function M.accept()
   end
   local first, last = range(bufnr, hunk)
   discard(bufnr, index)
-  vim.api.nvim_buf_set_lines(bufnr, first, last + 1, false, hunk.new_lines)
+  apply(bufnr, first, last, hunk.new_lines)
   advance(bufnr, first + #hunk.new_lines)
   finish_if_empty(bufnr)
 end
@@ -277,7 +289,7 @@ function M.accept_all()
     else
       local first, last = range(bufnr, hunk)
       discard(bufnr, index)
-      vim.api.nvim_buf_set_lines(bufnr, first, last + 1, false, hunk.new_lines)
+      apply(bufnr, first, last, hunk.new_lines)
     end
   end
   local skipped = #(reviews[bufnr] or {})

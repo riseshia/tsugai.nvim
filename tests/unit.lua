@@ -83,6 +83,17 @@ t.test("a hunk whose lines were edited after the proposal cannot be accepted", f
   diff.reject_all()
 end)
 
+t.test("accepting a hunk leaves the hunk on the next line intact", function()
+  local buf = t.buffer({ "a = 1", "b = 1", "c = 1" })
+  diff.show(buf, {
+    { old_text = "a = 1", new_text = "a = 2\na2 = 2", reason = "r" },
+    { old_text = "b = 1", new_text = "b = 2", reason = "r" },
+    { old_text = "c = 1", new_text = "", reason = "r" },
+  }, 0)
+  diff.accept_all()
+  t.eq(t.lines(buf), { "a = 2", "a2 = 2", "b = 2" })
+end)
+
 t.test("accept all skips stale hunks", function()
   local buf = t.buffer({ "a", "b" })
   diff.show(buf, {
