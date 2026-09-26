@@ -72,6 +72,14 @@ local function width(bufnr, text)
   return vim.fn.strdisplaywidth(expand_tabs(bufnr, text))
 end
 
+-- Marks stick to the start of their position. With the default gravity, replacing a whole
+-- line (cc, a formatter, nvim_buf_set_lines) pushes a mark at column 0 onto the next line,
+-- so the hunk's range would end before it starts.
+local function mark(bufnr, row, col, opts)
+  opts.right_gravity = false
+  return vim.api.nvim_buf_set_extmark(bufnr, ns, row, col, opts)
+end
+
 -- Like Copilot, only the part that changes is drawn as ghost text; unchanged code keeps its
 -- own highlighting. conceal_lines can't hide the lines being replaced: concealing every line
 -- of a buffer also hides the virtual lines attached to it.
@@ -99,7 +107,7 @@ local function render(bufnr, row, hunk)
     local old = current[head + i]
     local new = new_lines[head + i]
     if i > changed_new then
-      table.insert(marks, vim.api.nvim_buf_set_extmark(bufnr, ns, r, 0, {
+      table.insert(marks, mark(bufnr, r, 0, {
         end_row = r,
         end_col = #old,
         hl_group = "TsugaiRemoved",
@@ -108,7 +116,7 @@ local function render(bufnr, row, hunk)
       local col = common_prefix(old, new)
       local text = expand_tabs(bufnr, new:sub(col + 1))
       local padding = math.max(0, width(bufnr, old) - width(bufnr, old:sub(1, col)) - vim.fn.strdisplaywidth(text))
-      table.insert(marks, vim.api.nvim_buf_set_extmark(bufnr, ns, r, col, {
+      table.insert(marks, mark(bufnr, r, col, {
         virt_text = { { text .. string.rep(" ", padding), "TsugaiGhost" } },
         virt_text_pos = "overlay",
         hl_mode = "combine",
@@ -123,14 +131,14 @@ local function render(bufnr, row, hunk)
     end
     local below = row + head + changed_old - 1
     if below >= row then
-      table.insert(marks, vim.api.nvim_buf_set_extmark(bufnr, ns, below, 0, { virt_lines = extra }))
+      table.insert(marks, mark(bufnr, below, 0, { virt_lines = extra }))
     else
-      table.insert(marks, vim.api.nvim_buf_set_extmark(bufnr, ns, row, 0, { virt_lines = extra, virt_lines_above = true }))
+      table.insert(marks, mark(bufnr, row, 0, { virt_lines = extra, virt_lines_above = true }))
     end
   end
 
   hunk.marks = marks
-  hunk.anchor = vim.api.nvim_buf_set_extmark(bufnr, ns, row, 0, {
+  hunk.anchor = mark(bufnr, row, 0, {
     end_row = last,
     end_col = #current[#current],
   })
