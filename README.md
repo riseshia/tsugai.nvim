@@ -98,8 +98,10 @@ Consecutive `@@ai` lines form one template. To process only some templates, sele
 The chat is also where larger changes start. Ask without naming files, e.g. `add a cache option to fetch_user`; Claude looks at what is affected and answers in one of these ways:
 
 - Within one file: proposals in that file's buffer, reviewed with the keys above and listed in the quickfix list.
-- Across files: it first checks the approach with you in the chat, then shows a plan card (steps and the files it will create or edit). `<CR>` has Claude carry the plan out; the changed files are listed in the quickfix list, and you review them with `git diff`. `q` declines. Claude can edit files only while carrying out a plan you accepted, and only inside the working directory.
+- Across files: it first checks the approach with you in the chat (unless your request already settles it), then shows a plan card (steps and the files it will create or edit). `<CR>` has Claude carry the plan out; the changed files are listed in the quickfix list, and you review them with `git diff`. `q` declines. Claude can edit files only while carrying out a plan you accepted, and only inside the working directory.
 - A rule-based change, e.g. `rename fetch_user to load_user everywhere`: a command, below.
+
+![Asking for a change across files, accepting the plan, reviewing the diff](demo/plan.gif)
 
 For a rule-based change, Claude answers with a command instead of edits: it fills the quickfix list with the targets and shows a card with the command and what each piece means. `<CR>` runs it, `e` puts it in the command line to tweak, `q` cancels. Commands save the files they change (`| update`), so review the result with `git diff`; `<Space>fu` undoes the whole run. Commands that could reach the shell or evaluate code are refused.
 

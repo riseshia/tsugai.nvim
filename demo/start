@@ -1,0 +1,14 @@
+#!/bin/sh
+# Used by the tapes: copies demo/project to a fresh git repository outside this one and opens
+# Neovim there. Outside, the repository's CLAUDE.md (a guide for developing tsugai) is not
+# picked up, recordings never touch demo/project, and `git diff` shows only the demo's changes.
+set -eu
+demo=$(cd "$(dirname "$0")" && pwd)
+work=${TMPDIR:-/tmp}/tsugai-demo
+rm -rf "$work"
+cp -r "$demo/project" "$work"
+cd "$work"
+git init -q
+git add -A
+git -c user.name=demo -c user.email=demo@example.com commit -qm demo
+exec nvim --clean -n -u "$demo/init.lua" "$@"

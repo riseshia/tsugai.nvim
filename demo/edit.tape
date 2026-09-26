@@ -8,7 +8,7 @@ Set TypingSpeed 60ms
 Set WaitTimeout 120s
 
 Hide
-Type "cd demo/project && nvim --clean -n -u ../init.lua users.rb"
+Type "demo/start users.rb"
 Enter
 Sleep 1.5s
 Show

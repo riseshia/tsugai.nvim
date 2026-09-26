@@ -58,7 +58,7 @@ What Claude actually did (prompts, tool calls, results) is in the SDK's session 
 
 ## README GIFs
 
-`demo/` holds a minimal Neovim config, a small Ruby project and one [vhs](https://github.com/charmbracelet/vhs) tape per GIF. vhs needs `ttyd` and `ffmpeg`. Record from the repository root; each run calls Claude for real, so the result differs a little every time:
+`demo/` holds a minimal Neovim config, a small Ruby project and one [vhs](https://github.com/charmbracelet/vhs) tape per GIF. vhs needs `ttyd` and `ffmpeg`. Each tape starts with `demo/start`, which copies the project to a fresh git repository under `/tmp` (so this repository's CLAUDE.md stays out and `demo/project` is never touched) and opens Neovim there. Record from the repository root; each run calls Claude for real, so the result differs a little every time:
 
 ```sh
 vhs demo/edit.tape

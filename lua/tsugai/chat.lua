@@ -97,7 +97,7 @@ local function request(method, params)
   local function show_status()
     if M.window() then
       local seconds = math.floor((vim.uv.hrtime() - started) / 1e9)
-      vim.wo[state.win].winbar = ("%%#WarningMsg# ⏳ Claude is working · %ds · <C-c> to cancel"):format(seconds)
+      vim.wo[state.win].winbar = ("%%#WarningMsg# ● Claude is working · %ds · <C-c> to cancel"):format(seconds)
       vim.cmd.redraw()
     end
   end
