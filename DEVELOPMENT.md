@@ -19,6 +19,19 @@ npm run typecheck
 
 Node runs the `.ts` files directly; there is no build output.
 
+## Tests
+
+```sh
+mise run test        # typecheck, test:unit and test:e2e; the same as CI
+mise run lint        # actionlint and pinact for the workflows
+```
+
+- `tests/unit.lua` exercises the Lua side alone (command safety check, proposal rendering and accepting, templates, prefix and help) with the sidecar replaced by a recorder.
+- `tests/e2e.lua` runs the real path: Neovim, the sidecar, the Agent SDK and the Claude Code binary, against `tests/mock_api.mjs`, a stand-in for the Anthropic Messages API. Each scenario is a rule: when the latest user message contains a keyword, the mock calls a tsugai tool with scripted input (or answers with text). `CLAUDE_CONFIG_DIR` points at an empty directory so no real login is used, and nothing leaves the machine. Set `MOCK_API_LOG=<file>` to record the requests the mock receives.
+- Both run with `nvim --clean -l`, so your config and installed plugins stay out.
+
+Whether Claude's answers are any good still needs a manual run with the real API (below).
+
 ## Trying changes
 
 `bin/dev-nvim` starts Neovim with your usual config plus this checkout on the runtimepath. The sidecar is started on the first request and runs until Neovim exits, so restart Neovim after changing sidecar code.
@@ -62,6 +75,6 @@ The tapes wait for text on the screen (`Wait+Screen`) rather than a fixed time. 
 - Virtual lines never wrap and have no line numbers, and the cursor cannot sit on them. Anything that must stay readable on a narrow window goes elsewhere.
 - In tmux tests, sending `Escape` immediately followed by another key arrives as an Alt chord. Pause between them.
 - Killed test instances leave swap files that make the next run stop at a prompt. Start test instances with `nvim -n`.
-- Claude's Grep uses ripgrep, which skips gitignored directories when searching from above them. The system prompt tells Claude to search inside the working directory for this reason.
 - When tsugai is also installed through a plugin manager, `bin/dev-nvim` loads this checkout first and the installed copy's `plugin/tsugai.lua` is skipped by the `loaded_tsugai` guard. A Lua module deleted here, though, still loads from the installed copy.
 - Claude Code merges streamed replies that share a message id, and puts system-role reminders after the user's turn. A mock API has to give each reply its own id and look for the last user message, not the last message.
+- Claude's Grep uses ripgrep, which skips gitignored directories when searching from above them. The system prompt tells Claude to search inside the working directory for this reason.

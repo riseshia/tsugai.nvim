@@ -1,0 +1,28 @@
+[tools]
+# The sidecar runs .ts files directly, which needs Node 22.18 or later; 26 is what it is
+# developed and tested on.
+node = "26"
+neovim = "0.11"
+actionlint = "latest"
+pinact = "latest"
+
+[tasks.typecheck]
+description = "Type-check the sidecar"
+dir = "sidecar"
+run = "npm run typecheck"
+
+[tasks."test:unit"]
+description = "Lua tests without the sidecar"
+run = "nvim --clean -l tests/unit.lua"
+
+[tasks."test:e2e"]
+description = "Neovim, sidecar and Claude Code against a scripted mock API"
+run = "nvim --clean -l tests/e2e.lua"
+
+[tasks.test]
+description = "Everything CI runs"
+depends = ["typecheck", "test:unit", "test:e2e"]
+
+[tasks.lint]
+description = "Lint and pin GitHub Actions"
+run = ["actionlint", "pinact run --check"]
