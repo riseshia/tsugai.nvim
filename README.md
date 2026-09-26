@@ -51,6 +51,14 @@ Claude answers only when you ask. Every request blocks the editor while Claude w
 | `<Space>fe` | visual | Propose an edit to the selection (or process the `@@ai` templates inside it) |
 | `<Space>fu` | normal | Undo the last proposed command you ran |
 
+`:Tsugai help` lists every key with the prefix you configured.
+
+| Command | Action |
+|---|---|
+| `:Tsugai help` | Show the keys and commands |
+| `:Tsugai doctor` | Check Node.js, the build step, credentials and whether the sidecar is running (`:checkhealth tsugai`) |
+| `:Tsugai log` | Open the log: sidecar start/exit, each request with its duration, sidecar errors |
+
 ### Reviewing edits
 
 ![Editing a selection, revising the proposal, accepting it](demo/edit.gif)

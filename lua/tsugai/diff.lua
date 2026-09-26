@@ -315,20 +315,25 @@ function M.jump(direction)
   end
 end
 
+-- Keys mapped in a buffer while its proposals are shown; also listed by :Tsugai help.
+function M.review_keys()
+  return {
+    { key("y"), "accept the hunk under the cursor", M.accept },
+    { key("n"), "reject the hunk under the cursor", M.reject },
+    { key("r"), "revise the hunk under the cursor", function() require("tsugai.edit").refine() end },
+    { key("Y"), "accept every hunk in the buffer", M.accept_all },
+    { key("q"), "reject every hunk in the buffer", M.reject_all },
+    { "]g", "next hunk", function() M.jump(1) end },
+    { "[g", "previous hunk", function() M.jump(-1) end },
+  }
+end
+
 local function map_keys(bufnr)
   local opts = { buffer = bufnr, nowait = true }
-  local keys = {
-    ["]g"] = function() M.jump(1) end,
-    ["[g"] = function() M.jump(-1) end,
-    [key("y")] = M.accept,
-    [key("n")] = M.reject,
-    [key("r")] = function() require("tsugai.edit").refine() end,
-    [key("Y")] = M.accept_all,
-    [key("q")] = M.reject_all,
-  }
-  buffer_keys[bufnr] = vim.tbl_keys(keys)
-  for lhs, rhs in pairs(keys) do
-    vim.keymap.set("n", lhs, rhs, opts)
+  buffer_keys[bufnr] = {}
+  for _, k in ipairs(M.review_keys()) do
+    vim.keymap.set("n", k[1], k[3], opts)
+    table.insert(buffer_keys[bufnr], k[1])
   end
   vim.api.nvim_create_autocmd("CursorMoved", {
     group = augroup,

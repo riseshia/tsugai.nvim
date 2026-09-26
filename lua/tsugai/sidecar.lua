@@ -2,15 +2,16 @@ local progress = require("tsugai.progress")
 
 local M = {}
 
-local ROOT = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h:h")
+M.ROOT = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h:h")
+M.LOG_PATH = vim.fn.stdpath("log") .. "/tsugai.log"
 local TIMEOUT_MS = 10 * 60 * 1000
 
-local state = { chan = nil, pending = nil }
+local state = { chan = nil, pending = nil, pid = nil, cwd = nil, started_at = nil, requests = 0, last_exit = nil }
 
-local function log(lines)
-  local file = io.open(vim.fn.stdpath("log") .. "/tsugai.log", "a")
+local function log(line)
+  local file = io.open(M.LOG_PATH, "a")
   if file then
-    file:write(table.concat(lines, "\n"), "\n")
+    file:write(os.date("%Y-%m-%d %H:%M:%S "), line, "\n")
     file:close()
   end
 end
@@ -20,15 +21,21 @@ local function ensure_started()
     return state.chan
   end
 
-  state.chan = vim.fn.jobstart({ "node", ROOT .. "/sidecar/src/main.ts" }, {
+  local cwd = vim.fn.getcwd()
+  state.chan = vim.fn.jobstart({ "node", M.ROOT .. "/sidecar/src/main.ts" }, {
     rpc = true,
-    cwd = vim.fn.getcwd(),
+    cwd = cwd,
     env = { TSUGAI_INSTRUCTIONS = require("tsugai").config.instructions },
     on_stderr = function(_, data)
-      log(data)
+      for _, line in ipairs(data) do
+        if line ~= "" then
+          log("sidecar: " .. line)
+        end
+      end
     end,
     on_exit = function(_, code)
-      state.chan = nil
+      log(("sidecar exited with code %d"):format(code))
+      state.chan, state.pid, state.last_exit = nil, nil, code
       if state.pending then
         state.pending.error = "sidecar exited with code " .. code
         state.pending.done = true
@@ -39,6 +46,8 @@ local function ensure_started()
     state.chan = nil
     error("tsugai: failed to start sidecar")
   end
+  state.pid, state.cwd, state.started_at, state.requests = vim.fn.jobpid(state.chan), cwd, os.time(), 0
+  log(("sidecar started (pid %d, cwd %s)"):format(state.pid, cwd))
   return state.chan
 end
 
@@ -70,6 +79,8 @@ function M.request(method, params, on_progress)
     progress.open(method)
   end
 
+  local started = vim.uv.hrtime()
+  state.requests = state.requests + 1
   vim.rpcnotify(chan, method, params)
   local finished = function()
     return pending.done
@@ -83,10 +94,24 @@ function M.request(method, params, on_progress)
 
   state.pending = nil
   progress.close()
+  local seconds = (vim.uv.hrtime() - started) / 1e9
+  log(("%s %s in %.1fs"):format(method, pending.error and ("failed: " .. pending.error) or "done", seconds))
   if pending.error then
     error("tsugai: " .. pending.error, 0)
   end
   return pending.result
+end
+
+-- For :checkhealth. last_exit is the exit code of a sidecar that is no longer running.
+function M.status()
+  return {
+    running = state.chan ~= nil,
+    pid = state.pid,
+    cwd = state.cwd,
+    started_at = state.started_at,
+    requests = state.requests,
+    last_exit = state.last_exit,
+  }
 end
 
 return M

@@ -33,6 +33,26 @@ function M.map_keys()
   map("n", "u", function() require("tsugai.command").undo() end, "undo the last proposed command")
 end
 
+local SUBCOMMANDS = {
+  help = function() require("tsugai.help").open() end,
+  doctor = function() vim.cmd("checkhealth tsugai") end,
+  log = function() vim.cmd.tabnew(vim.fn.fnameescape(require("tsugai.sidecar").LOG_PATH)) end,
+}
+
+function M.command(opts)
+  local run = SUBCOMMANDS[opts.fargs[1]]
+  if not run then
+    return vim.notify("tsugai: usage :Tsugai " .. table.concat(M.subcommands(), "|"), vim.log.levels.WARN)
+  end
+  run()
+end
+
+function M.subcommands()
+  local names = vim.tbl_keys(SUBCOMMANDS)
+  table.sort(names)
+  return names
+end
+
 -- instructions take effect when the sidecar starts, which happens on the first request.
 function M.setup(opts)
   M.config = vim.tbl_extend("force", M.config, opts or {})
