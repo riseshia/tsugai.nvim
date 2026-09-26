@@ -1,4 +1,6 @@
 // The only file that talks to Claude. Swapping the Agent SDK for the `claude` CLI happens here.
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { McpSdkServerConfigWithInstance, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 
@@ -15,6 +17,10 @@ export type Session = {
 const MODEL = "sonnet";
 const READ_TOOLS = ["Read", "Grep", "Glob"];
 const WRITE_TOOLS = ["Edit", "Write"];
+// Claude Code's own config dir. Walking up from a project under $HOME, it would pick up
+// ~/.claude/CLAUDE.md as if it were project instructions, bringing the user's personal
+// Claude Code setup into tsugai's prompt.
+const CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
 
 // Returns why writing `path` is not allowed right now, or undefined to allow it.
 export type WritePolicy = (path: string) => string | undefined;
@@ -60,6 +66,7 @@ export function startSession(
       },
       includePartialMessages: true,
       settingSources: ["project"],
+      settings: { claudeMdExcludes: [join(CLAUDE_CONFIG_DIR, "**")] },
       systemPrompt,
     },
   });
