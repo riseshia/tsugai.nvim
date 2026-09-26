@@ -26,6 +26,7 @@ local users = write("users.rb", {
   "  end",
   "end",
 })
+local original_users = vim.fn.readfile(users)
 local app = write("app.rb", { 'require_relative "users"', "", "user = Users.fetch_user(1)", "puts user" })
 write("cart.rb", { "class Cart", "  # @@ai total price of the items", "end" })
 
@@ -58,6 +59,43 @@ local rules = {
     } } },
   },
   { match = "E2E_ASK", text = "It is called from app.rb:3." },
+  {
+    match = "E2E_REVIEW",
+    tool = "propose_edit",
+    input = { hunks = {
+      { path = "users.rb", old_text = "  def self.fetch_user(id)", new_text = "  def self.fetch_user(id, cache: true)", reason = "add a cache flag" },
+      { path = "users.rb", old_text = "    { id: id }", new_text = "    { id: id, cached: cache }", reason = "record it" },
+    } },
+  },
+  {
+    match = "E2E_SPLIT",
+    tool = "propose_edit",
+    input = { hunks = {
+      { path = "users.rb", old_text = "  def self.fetch_user(id)", new_text = "  def self.fetch_user(id, x)", reason = "a" },
+      { path = "app.rb", old_text = "user = Users.fetch_user(1)", new_text = "user = Users.fetch_user(1, 2)", reason = "b" },
+    } },
+  },
+  -- Listed before E2E_PLAN: the execute request quotes the plan, whose title has this keyword.
+  {
+    match = "E2E_EXECUTE",
+    tool = "Edit",
+    input = { file_path = users, old_string = "  def self.fetch_user(id)", new_string = "  def self.fetch_user(id, cache: true)" },
+  },
+  {
+    match = "E2E_PLAN",
+    tool = "propose_plan",
+    input = {
+      title = "E2E_EXECUTE add cache:",
+      summary = "Add a cache: keyword to fetch_user.",
+      steps = { "Add the keyword" },
+      files = { { path = "users.rb", action = "edit", note = "new keyword" } },
+    },
+  },
+  {
+    match = "E2E_SNEAKY",
+    tool = "Edit",
+    input = { file_path = app, old_string = "puts user", new_string = "puts :sneaky" },
+  },
   {
     match = "E2E_RENAME",
     tool = "propose_command",
@@ -128,6 +166,45 @@ t.test("chat: the answer is streamed into the chat buffer", function()
   t.ok(text:find("It is called from app.rb:3.", 1, true), "the answer is in the chat")
 end)
 
+t.test("chat: edits within one file are shown in its buffer and listed in quickfix", function()
+  vim.cmd.edit(app)
+  t.with_input("E2E_REVIEW review users.rb", chat.ask)
+  t.eq(vim.api.nvim_get_current_buf(), vim.fn.bufnr(app), "the current window keeps its buffer")
+  t.eq(#vim.fn.getqflist(), 2, "both proposals are listed")
+
+  vim.cmd("cfirst")
+  diff.accept_all()
+  vim.cmd("cclose")
+  t.eq(vim.api.nvim_buf_get_lines(0, 1, 3, false), { "  def self.fetch_user(id, cache: true)", "    { id: id, cached: cache }" })
+  vim.cmd("silent! edit!")
+end)
+
+t.test("chat: per-hunk proposals across files are refused in favour of a plan", function()
+  vim.cmd.edit(app)
+  vim.fn.setqflist({}, "r", { title = "before" })
+  t.with_input("E2E_SPLIT change both", chat.ask)
+  t.eq(vim.fn.getqflist({ title = 1 }).title, "before", "no proposals were shown")
+end)
+
+t.test("chat: an accepted plan is carried out on disk and the changes are listed", function()
+  vim.cmd.edit(app)
+  t.with_input("E2E_PLAN add a cache keyword everywhere", chat.ask)
+  t.ok(vim.api.nvim_win_get_config(0).relative ~= "", "the plan card has focus")
+  vim.fn.maparg("<CR>", "n", false, true).callback()
+
+  t.eq(vim.fn.readfile(users)[2], "  def self.fetch_user(id, cache: true)", "Claude edited the file")
+  t.eq(vim.tbl_map(function(i) return vim.fn.bufname(i.bufnr) end, vim.fn.getqflist()), { "users.rb" })
+  vim.cmd("cclose")
+  vim.fn.writefile(original_users, users)
+  vim.cmd("silent! checktime")
+end)
+
+t.test("chat: Claude cannot write files outside an accepted plan", function()
+  vim.cmd.edit(app)
+  t.with_input("E2E_SNEAKY tidy up", chat.ask)
+  t.eq(vim.fn.readfile(app)[4], "puts user")
+end)
+
 t.test("chat: a proposed command shows a card and runs from it", function()
   vim.cmd.edit(app)
   t.with_input("E2E_RENAME rename fetch_user to load_user", chat.ask)
@@ -155,7 +232,7 @@ end)
 t.test("doctor: the sidecar is reported as running", function()
   local status = require("tsugai.sidecar").status()
   t.ok(status.running, "running")
-  t.ok(status.requests >= 5, "requests are counted")
+  t.ok(status.requests >= 9, "requests are counted")
 end)
 
 t.run(function() mock:kill("sigterm") end)

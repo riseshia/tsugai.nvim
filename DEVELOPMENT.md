@@ -5,7 +5,7 @@ The design and its reasons live in [spec.md](spec.md). Keep it in sync when beha
 ## Layout
 
 - `plugin/tsugai.lua`: sets the default key mappings on startup.
-- `lua/tsugai/`: the Neovim side. `init.lua` holds `setup()`, the config and the global mappings, `sidecar.lua` starts the sidecar and blocks on requests, `diff.lua` draws and accepts proposals, `edit.lua` (edits and `@@ai` templates), `chat.lua`, `command.lua` (command cards and their safety check), `nav.lua` (`open_file`), `help.lua` (`:Tsugai help`), `health.lua` (`:checkhealth tsugai`).
+- `lua/tsugai/`: the Neovim side. `init.lua` holds `setup()`, the config and the global mappings, `sidecar.lua` starts the sidecar and blocks on requests, `diff.lua` draws and accepts proposals, `edit.lua` (edits and `@@ai` templates), `chat.lua`, `command.lua` (command cards and their safety check), `nav.lua` (`open_file`), `help.lua` (`:Tsugai help`), `health.lua` (`:checkhealth tsugai`), `card.lua` (the proposal float shared by `command.lua` and `plan.lua`).
 - `sidecar/src/`: the Agent SDK process. `engine.ts` is the only file that talks to Claude, `tools.ts` defines the tools Claude can call, `main.ts` holds the system prompt and the request handlers.
 
 The sidecar is started with `jobstart(..., { rpc = true })`: stdin/stdout carry msgpack-rpc both ways. Lua sends requests as notifications; the sidecar answers by calling `require('tsugai.sidecar').on_event(...)`.

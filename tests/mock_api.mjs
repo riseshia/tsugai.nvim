@@ -4,7 +4,8 @@
 // Usage: node tests/mock_api.mjs <rules.json> <port file>
 // Each rule is { match, tool?, input?, text? }. When the latest user message contains
 // `match`, the reply calls `tool` (the tsugai tool name, e.g. propose_edit) with `input`,
-// or answers with `text`. Once a tool result comes back, the turn ends with a short text.
+// or answers with `text`. `tool` is a tsugai tool name (propose_edit) or a built-in one
+// (Edit). Once a tool result comes back, the turn ends with a short text.
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import http from "node:http";
 
@@ -47,7 +48,7 @@ function reply(request) {
   if (!rule) return [[{ type: "text", text: "No rule matched." }], "end_turn"];
   if (rule.text) return [[{ type: "text", text: rule.text }], "end_turn"];
 
-  const name = request.tools.map((t) => t.name).find((n) => n.endsWith(`__${rule.tool}`));
+  const name = request.tools.map((t) => t.name).find((n) => n === rule.tool || n.endsWith(`__${rule.tool}`));
   return [[{ type: "tool_use", id: `toolu_mock_${replies}`, name, input: rule.input }], "tool_use"];
 }
 

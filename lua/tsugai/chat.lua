@@ -90,6 +90,29 @@ local function on_progress(event)
   end
 end
 
+-- Sends a request with a live "working" line in the chat's winbar: chat requests show their
+-- progress in the chat instead of the progress float, which is where the cancel hint was.
+local function request(method, params)
+  local started = vim.uv.hrtime()
+  local function show_status()
+    if M.window() then
+      local seconds = math.floor((vim.uv.hrtime() - started) / 1e9)
+      vim.wo[state.win].winbar = ("%%#WarningMsg# ⏳ Claude is working · %ds · <C-c> to cancel"):format(seconds)
+      vim.cmd.redraw()
+    end
+  end
+  show_status()
+  local timer = vim.uv.new_timer()
+  timer:start(1000, 1000, vim.schedule_wrap(show_status))
+  local ok, result = pcall(sidecar.request, method, params, on_progress)
+  timer:stop()
+  timer:close()
+  if M.window() then
+    vim.wo[state.win].winbar = ""
+  end
+  return ok, result
+end
+
 local function ask(selected)
   local question = vim.fn.input("tsugai ask> ")
   if question == "" then
@@ -106,13 +129,55 @@ local function ask(selected)
   vim.list_extend(header, { "", "## Claude", "", "" })
   append_lines(header)
 
-  local ok, result = pcall(sidecar.request, "ask", { question = question, selection = selected }, on_progress)
+  -- The buffer the user was looking at; proposals without a path belong to it.
+  local code_bufnr = vim.api.nvim_get_current_buf()
+  local ok, result = request("ask", { question = question, selection = selected })
   if not ok then
     return append_tool_line("_" .. result .. "_")
+  end
+  if result.hunks then
+    local shown, missing = require("tsugai.diff").show_across(result.hunks, code_bufnr)
+    local note = ("_%d proposal(s), listed in the quickfix list_"):format(shown)
+    if missing > 0 then
+      note = note .. (" _(%d did not match their file and were dropped)_"):format(missing)
+    end
+    append_tool_line(note)
   end
   if result.command then
     require("tsugai.command").propose(result.command)
   end
+  if result.plan then
+    require("tsugai.plan").propose(result.plan)
+  end
+end
+
+-- An italic line in the chat, for things tsugai itself reports.
+function M.note(text)
+  open()
+  append_tool_line("_" .. text .. "_")
+end
+
+-- Has Claude carry out an accepted plan. Its edits land on disk, so open buffers are
+-- reloaded afterwards and the changed files are listed for review.
+function M.execute_plan(plan)
+  open()
+  append_lines({ "", "## Claude: " .. plan.title, "", "" })
+  local ok, result = request("execute", { plan = plan })
+  vim.cmd("checktime")
+  if not ok then
+    return append_tool_line("_" .. result .. " (files changed so far stay changed; see git diff)_")
+  end
+  if #result.changed == 0 then
+    return append_tool_line("_No files were changed._")
+  end
+  local items = vim.tbl_map(function(path)
+    return { filename = path, lnum = 1, text = "changed by: " .. plan.title }
+  end, result.changed)
+  vim.fn.setqflist({}, " ", { title = "tsugai: " .. plan.title, items = items })
+  local win = vim.api.nvim_get_current_win()
+  vim.cmd("botright copen")
+  vim.api.nvim_set_current_win(win)
+  append_tool_line(("_%d file(s) changed, listed in the quickfix list. Review with git diff._"):format(#result.changed))
 end
 
 function M.ask()

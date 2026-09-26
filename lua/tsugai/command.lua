@@ -1,6 +1,5 @@
 local M = {}
 
-local ns = vim.api.nvim_create_namespace("tsugai_command")
 
 -- Commands that take the rest of the line as another command.
 local ITERATORS = { cfdo = true, cdo = true, lfdo = true, ldo = true, bufdo = true, argdo = true, windo = true, tabdo = true }
@@ -154,47 +153,16 @@ local function card_lines(proposal)
 end
 
 local function show_card(proposal)
-  local lines = card_lines(proposal)
-  local width = vim.fn.strdisplaywidth(" " .. proposal.title .. " ")
-  for _, line in ipairs(lines) do
-    width = math.max(width, vim.fn.strdisplaywidth(line))
-  end
-  width = math.min(width + 2, vim.o.columns - 4)
-
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  vim.bo[buf].modifiable = false
-  local win = vim.api.nvim_open_win(buf, true, {
-    relative = "editor",
-    row = math.floor((vim.o.lines - #lines) / 3),
-    col = math.floor((vim.o.columns - width) / 2),
-    width = width,
-    height = #lines,
-    style = "minimal",
-    border = "rounded",
-    title = " " .. proposal.title .. " ",
+  require("tsugai.card").open(proposal.title, card_lines(proposal), {
+    ["<CR>"] = function(close)
+      close()
+      execute(proposal)
+    end,
+    e = function(close)
+      close()
+      vim.api.nvim_feedkeys(":" .. proposal.command, "n", false)
+    end,
   })
-  vim.wo[win].wrap = true
-  vim.api.nvim_buf_set_extmark(buf, ns, 0, 0, { line_hl_group = "Statement" })
-  vim.api.nvim_buf_set_extmark(buf, ns, #lines - 1, 0, { line_hl_group = "Comment" })
-
-  local function close()
-    if vim.api.nvim_win_is_valid(win) then
-      vim.api.nvim_win_close(win, true)
-    end
-  end
-  local opts = { buffer = buf, nowait = true }
-  vim.keymap.set("n", "<CR>", function()
-    close()
-    execute(proposal)
-  end, opts)
-  vim.keymap.set("n", "e", function()
-    close()
-    vim.api.nvim_feedkeys(":" .. proposal.command, "n", false)
-  end, opts)
-  vim.keymap.set("n", "q", close, opts)
-  vim.keymap.set("n", "<Esc>", close, opts)
-  vim.api.nvim_create_autocmd("WinLeave", { buffer = buf, once = true, callback = close })
 end
 
 -- Shows a command Claude proposed from the chat. Checked again here: this is what actually

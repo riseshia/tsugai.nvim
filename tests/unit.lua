@@ -106,6 +106,30 @@ t.test("accept all skips stale hunks", function()
   diff.reject_all()
 end)
 
+t.test("proposals across files go to their buffers and the quickfix list, without moving the cursor", function()
+  local dir = vim.fn.tempname()
+  vim.fn.mkdir(dir, "p")
+  vim.fn.writefile({ "a = 1" }, dir .. "/a.rb")
+  vim.fn.writefile({ "b = 1" }, dir .. "/b.rb")
+  local current = t.buffer({ "c = 1", "c2" })
+  vim.api.nvim_win_set_cursor(0, { 2, 0 })
+
+  local shown, missing = diff.show_across({
+    { path = dir .. "/a.rb", old_text = "a = 1", new_text = "a = 2", reason = "ra" },
+    { path = dir .. "/b.rb", old_text = "b = 1", new_text = "b = 2", reason = "rb" },
+    { old_text = "c = 1", new_text = "c = 2", reason = "rc" },
+    { path = dir .. "/b.rb", old_text = "no such line", new_text = "x", reason = "gone" },
+  }, current)
+
+  t.eq({ shown, missing }, { 3, 1 })
+  t.eq(vim.tbl_map(function(item) return item.text end, vim.fn.getqflist()), { "ra", "rb", "rc" })
+  t.eq(vim.api.nvim_get_current_buf(), current, "the current window keeps its buffer")
+  t.eq(vim.api.nvim_win_get_cursor(0)[1], 2, "the cursor stays put")
+  local b = vim.fn.bufnr(dir .. "/b.rb")
+  t.eq(#vim.api.nvim_buf_get_extmarks(b, -1, 0, -1, {}) > 0, true, "b.rb shows its proposal")
+  vim.cmd("cclose")
+end)
+
 t.test("normal-mode edit sends every @@ai template, grouping consecutive lines", function()
   requests = {}
   t.buffer({ "class A", "  # @@ai first", "  # @@ai  continued", "", "  // @@ai second", "end" })
@@ -134,6 +158,15 @@ t.test("a selection without templates asks for an instruction", function()
   t.with_input("rename", edit.run_selection)
   t.eq(requests[1].params.instruction, "rename")
   t.eq(requests[1].params.selection.text, "x = 1\ny = 2")
+end)
+
+t.test("a card stays within 80 columns and grows to fit wrapped lines", function()
+  vim.o.columns, vim.o.lines = 200, 50
+  require("tsugai.card").open("title", { string.rep("word ", 60), "", "<CR> run" }, {})
+  local config = vim.api.nvim_win_get_config(0)
+  t.eq(config.width, 80)
+  t.ok(config.height >= 5, "the long line wraps onto several rows, got height " .. config.height)
+  vim.cmd("close")
 end)
 
 t.test("the prefix setting moves every key, and help follows it", function()

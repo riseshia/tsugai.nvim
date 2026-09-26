@@ -10,7 +10,7 @@
 ## Principles
 
 1. **Explicit triggers only.** Code generation and questions happen only on request. No as-you-type suggestions.
-2. **Changes are proposals.** The AI never edits buffers directly. Every change goes through my acceptance: per-hunk preview for a single file, per-plan acceptance for multi-file scaffolds (feature 5).
+2. **Changes go through my acceptance.** Changes within one file are per-hunk proposals I accept one by one. Changes across files are agreed in the chat and accepted as a plan (feature 5); only then does Claude edit files, and I review the result with git diff.
 3. **Claude fetches the context it needs.** I don't hand-pick context; buffers are exposed as tools. No LSP tools (no guarantee they improve quality).
 
 ## Features
@@ -50,7 +50,7 @@ end
   - Each hunk carries a one-line reason
   - `<Space>fr` gives a follow-up instruction for the hunk under the cursor and redraws it with the revision
   - Accepting a hunk whose lines were edited after the proposal is refused (`<Space>fY` skips such hunks), so the edits are not silently overwritten
-- Scattered proposals, such as a whole-file review, come back as a quickfix list; each item is applied via the inline diff.
+- From the chat, changes within one file (fixes from a review of it, say) come back the same way: Claude calls `propose_edit` with the file's path, the hunks are placed in its buffer (loaded if needed, without changing windows or moving the cursor) and listed in the quickfix list. Changes across files become a plan (feature 5).
 
 ### 4. Command proposals (bulk replace, etc.)
 
@@ -88,31 +88,34 @@ Flow:
 - Only Ex commands that stay inside Neovim are proposed. Anything that reaches the shell (`:!`, `system()`, `:terminal`, etc.) is forbidden.
   - Enforced in Lua before the card is shown: `!` and `\=` are refused anywhere, and every command name (including the ones after `cfdo`/`cdo`/`bufdo`, `:g/pat/` and `|`) must be on an allowlist of text-editing commands (`s`, `d`, `m`, `t`, `j`, `normal`, `sort`, ...). The `propose_command` tool runs the same check so Claude can revise a refused command.
 
-### 5. Multi-file scaffolds
+### 5. Changes across files (plans)
 
-Multi-file creation/edits are requested from the chat (`<Space>fa`). There is no per-file preview; **acceptance is per plan**. Detailed review happens afterwards via git diff or similar.
+Large changes, a refactor across the codebase or a scaffold, cannot be reviewed hunk by hunk across dozens of files. They are **accepted per plan**, carried out by Claude, and reviewed afterwards with git diff.
 
-1. Ask in the chat: "scaffold a users resource: controller, model, spec"
-2. Claude does not write files; it returns a plan via `propose_scaffold`.
-3. A proposal card opens.
+1. Ask in the chat without naming files: "add a cache option to fetch_user".
+2. Claude finds what is affected and agrees on the approach in the chat: "fetch_user is used in app.rb and 12 other places; I would add X and update them like Y. OK?". It skips the question when the request already fixes the approach.
+3. Claude calls `propose_plan`, and a plan card opens.
 
 ```
-┌ Proposal: users scaffold  (create 3 / edit 1) ─────┐
-│ Users CRUD skeleton. User model (name, email),      │
-│ controller index/show/create, model spec, route     │
-│                                                     │
-│  + app/controllers/users_controller.rb             │
-│  + app/models/user.rb                              │
-│  + spec/models/user_spec.rb                        │
-│  ~ config/routes.rb      add resources :users      │
-│                                                     │
-│ <CR> accept   q cancel                              │
-└─────────────────────────────────────────────────────┘
+┌ fetch_user(id) → fetch_user(id:) ───────────────────────────┐
+│ Make id a required keyword argument and update the callers. │
+│                                                             │
+│  1. Change the signature in users.rb                        │
+│  2. Update the call sites                                   │
+│                                                             │
+│  ~ users.rb  signature and the call in fetch_users          │
+│  ~ app.rb    line 3                                         │
+│  + ...       (+ for files to create)                        │
+│                                                             │
+│ <CR> carry it out   q decline                               │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-4. On accept, Lua writes and saves the files, then opens them as buffers. The touched files go into the quickfix list (`]q` to walk them).
+4. `<CR>`: Claude carries the plan out with its Edit and Write tools, its progress streamed into the chat. Open buffers are reloaded, the changed files go into the quickfix list, and the result is reviewed with git diff. `q`: nothing happens, and the conversation goes on.
 
-- If a target file is open in a buffer with unsaved changes, refuse instead of overwriting.
+- Edit and Write are allowed only while an accepted plan is being carried out, and only for files inside the working directory (the SDK's `canUseTool`). Otherwise Claude has to propose.
+- If a buffer has unsaved changes, accepting is refused until it is saved, so the files on disk and the buffers do not diverge.
+- A change within one file never becomes a plan: it comes back as per-hunk proposals (feature 3), even from the chat. `propose_edit` refuses hunks that span files in the chat.
 
 ## Execution model
 

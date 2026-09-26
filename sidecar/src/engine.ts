@@ -13,9 +13,18 @@ export type Session = {
 };
 
 const MODEL = "sonnet";
-const BUILTIN_TOOLS = ["Read", "Grep", "Glob"];
+const READ_TOOLS = ["Read", "Grep", "Glob"];
+const WRITE_TOOLS = ["Edit", "Write"];
 
-export function startSession(cwd: string, server: McpSdkServerConfigWithInstance, systemPrompt: string): Session {
+// Returns why writing `path` is not allowed right now, or undefined to allow it.
+export type WritePolicy = (path: string) => string | undefined;
+
+export function startSession(
+  cwd: string,
+  server: McpSdkServerConfigWithInstance,
+  systemPrompt: string,
+  mayWrite: WritePolicy,
+): Session {
   const queued: SDKUserMessage[] = [];
   let wake: (() => void) | undefined;
 
@@ -36,10 +45,19 @@ export function startSession(cwd: string, server: McpSdkServerConfigWithInstance
     options: {
       cwd,
       model: MODEL,
-      tools: BUILTIN_TOOLS,
-      allowedTools: [...BUILTIN_TOOLS, `mcp__${server.name}`],
+      tools: [...READ_TOOLS, ...WRITE_TOOLS],
+      // Reads and tsugai's own tools never ask. Writes always come to canUseTool, which
+      // allows them only while an accepted plan is being carried out.
+      allowedTools: [...READ_TOOLS, `mcp__${server.name}`],
       mcpServers: { [server.name]: server },
-      permissionMode: "dontAsk",
+      permissionMode: "default",
+      canUseTool: async (toolName, input) => {
+        if (!WRITE_TOOLS.includes(toolName)) {
+          return { behavior: "deny", message: `${toolName} is not available in tsugai.` };
+        }
+        const reason = mayWrite(String(input.file_path));
+        return reason ? { behavior: "deny", message: reason } : { behavior: "allow", updatedInput: input };
+      },
       includePartialMessages: true,
       settingSources: ["project"],
       systemPrompt,

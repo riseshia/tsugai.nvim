@@ -164,6 +164,10 @@ end
 -- The reason goes in the echo area rather than between code lines: virtual lines never wrap,
 -- so on a narrow window they get cut off at the edge.
 local function echo_hint(bufnr)
+  -- Proposals can be placed in buffers that are not on screen (chat edits across files).
+  if bufnr ~= vim.api.nvim_get_current_buf() then
+    return
+  end
   local hunk = M.hunk_at_cursor(bufnr)
   if not hunk then
     return vim.api.nvim_echo({ { "" } }, false, {})
@@ -300,12 +304,15 @@ function M.accept_all()
   finish_if_empty(bufnr)
 end
 
-function M.reject_all()
-  local bufnr = vim.api.nvim_get_current_buf()
+local function clear_buffer(bufnr)
   while #(reviews[bufnr] or {}) > 0 do
     discard(bufnr, 1)
   end
   finish_if_empty(bufnr)
+end
+
+function M.reject_all()
+  clear_buffer(vim.api.nvim_get_current_buf())
 end
 
 -- Redraws `hunk` with a revised proposal for the same original lines.
@@ -365,7 +372,7 @@ end
 -- Shows hunks as ghost text over the code they replace.
 -- Returns how many hunks could not be located in the buffer.
 function M.show(bufnr, hunks, near_row)
-  M.reject_all()
+  clear_buffer(bufnr)
   reviews[bufnr] = {}
   local missing = 0
 
@@ -383,14 +390,56 @@ function M.show(bufnr, hunks, near_row)
 
   if #reviews[bufnr] > 0 then
     map_keys(bufnr)
-    local first = range(bufnr, reviews[bufnr][1])
-    vim.api.nvim_win_set_cursor(0, { first + 1, 0 })
-    -- Deferred: leaving visual mode after the mapping returns clears the echo area.
-    vim.schedule(function() echo_hint(bufnr) end)
+    if bufnr == vim.api.nvim_get_current_buf() then
+      local first = range(bufnr, reviews[bufnr][1])
+      vim.api.nvim_win_set_cursor(0, { first + 1, 0 })
+      -- Deferred: leaving visual mode after the mapping returns clears the echo area.
+      vim.schedule(function() echo_hint(bufnr) end)
+    end
   else
     reviews[bufnr] = nil
   end
   return missing
+end
+
+-- Shows proposals that may span files, each in its file's buffer (loaded if needed, without
+-- changing windows), and lists them all in the quickfix list. Hunks without a path belong to
+-- `default_bufnr`. Returns how many hunks were shown and how many did not match.
+function M.show_across(hunks, default_bufnr)
+  local order, by_buffer = {}, {}
+  for _, hunk in ipairs(hunks) do
+    local bufnr = default_bufnr
+    if hunk.path and hunk.path ~= "" then
+      bufnr = vim.fn.bufadd(vim.fn.fnamemodify(hunk.path, ":p"))
+      vim.fn.bufload(bufnr)
+      vim.bo[bufnr].buflisted = true
+    end
+    if not by_buffer[bufnr] then
+      by_buffer[bufnr] = {}
+      table.insert(order, bufnr)
+    end
+    table.insert(by_buffer[bufnr], hunk)
+  end
+
+  -- show() jumps to the first hunk, which suits an edit of the selection; here the user is
+  -- still reading the chat, so the cursor stays where it was.
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local missing, items = 0, {}
+  for _, bufnr in ipairs(order) do
+    missing = missing + M.show(bufnr, by_buffer[bufnr], 0)
+    for _, hunk in ipairs(reviews[bufnr] or {}) do
+      table.insert(items, { bufnr = bufnr, lnum = range(bufnr, hunk) + 1, text = hunk.reason })
+    end
+  end
+
+  vim.api.nvim_win_set_cursor(0, cursor)
+  if #items > 0 then
+    vim.fn.setqflist({}, " ", { title = "tsugai: proposals", items = items })
+    local win = vim.api.nvim_get_current_win()
+    vim.cmd("botright copen")
+    vim.api.nvim_set_current_win(win)
+  end
+  return #items, missing
 end
 
 return M

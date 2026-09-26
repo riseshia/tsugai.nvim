@@ -11,6 +11,7 @@ export type Selection = {
 };
 
 export type Hunk = {
+  path?: string;
   old_text: string;
   new_text: string;
   reason: string;
@@ -23,11 +24,23 @@ export type Command = {
   locations: { path: string; line: number; text: string }[];
 };
 
+export type Plan = {
+  title: string;
+  summary: string;
+  steps: string[];
+  files: { path: string; action: "create" | "edit"; note: string }[];
+};
+
 // State of the request in flight. Requests are single-threaded, so one slot is enough.
 export type RequestContext = {
+  mode?: "edit" | "chat" | "execute";
   selection?: Selection;
   hunks?: Hunk[];
   command?: Command;
+  plan?: Plan;
+  executing?: boolean;
+  // Files written while carrying out a plan, relative to the working directory.
+  changed?: Set<string>;
 };
 
 export const SERVER_NAME = "tsugai";
@@ -102,10 +115,11 @@ export function createTools(nvim: NeovimClient, context: () => RequestContext) {
       ),
       tool(
         "propose_edit",
-        "Propose changes to the selected code. Call exactly once per edit request. The user reviews each hunk and accepts or rejects it.",
+        "Propose changes as hunks the user reviews and accepts one by one in their buffers. For an edit request, call it once for the selection. In the chat, give every hunk a path; the hunks may span files.",
         {
           hunks: z.array(
             z.object({
+              path: z.string().optional().describe("File the hunk applies to, relative to the working directory. Required in the chat; omit for an edit request."),
               old_text: z.string().describe("Complete lines copied verbatim from the buffer, without line-number prefixes. Must not be empty."),
               new_text: z.string().describe("Replacement lines. Empty string deletes the lines."),
               reason: z.string().describe("One short line explaining why."),
@@ -113,7 +127,12 @@ export function createTools(nvim: NeovimClient, context: () => RequestContext) {
           ),
         },
         async ({ hunks }) => {
-          context().hunks = hunks;
+          if (context().mode === "chat" && new Set(hunks.map((h) => h.path)).size > 1) {
+            return failure(
+              "These hunks span files. Changes across files go through propose_plan: agree on the approach with the user first, then propose a plan.",
+            );
+          }
+          context().hunks = [...(context().hunks ?? []), ...hunks];
           return text(`Recorded ${hunks.length} hunk(s) for review.`);
         },
       ),
@@ -127,6 +146,22 @@ export function createTools(nvim: NeovimClient, context: () => RequestContext) {
         async ({ path, line }) => {
           const opened = await nvim.lua("return require('tsugai.nav').open(...)", [path, line]);
           return opened === true ? text(`Opened ${path}:${line}.`) : failure(String(opened));
+        },
+      ),
+      tool(
+        "propose_plan",
+        "Propose a plan for a change across files, once the user has agreed on the approach. The user accepts or declines it on a card; if accepted, you are asked to carry it out and may then edit files.",
+        {
+          title: z.string().describe("Short name of the change, e.g. `Add cache: to fetch_user`."),
+          summary: z.string().describe("Two or three sentences on what changes and why."),
+          steps: z.array(z.string()).describe("The steps, in order, one line each."),
+          files: z
+            .array(z.object({ path: z.string(), action: z.enum(["create", "edit"]), note: z.string() }))
+            .describe("Every file to create or edit, relative to the working directory, with what happens to it."),
+        },
+        async (plan) => {
+          context().plan = plan;
+          return text("The user will see the plan and accept or decline it. Stop here and wait for their decision.");
         },
       ),
       tool(
